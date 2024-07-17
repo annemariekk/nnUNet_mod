@@ -72,7 +72,8 @@ class SegmentationNetwork(NeuralNetwork):
 
     def predict_3D(self, x: np.ndarray, do_mirroring: bool, mirror_axes: Tuple[int, ...] = (0, 1, 2),
                    use_sliding_window: bool = False,
-                   step_size: float = 0.5, patch_size: Tuple[int, ...] = None, regions_class_order: Tuple[int, ...] = None,
+                   step_size: float = 0.5, patch_size: Tuple[int, ...] = None,
+                   regions_class_order: Tuple[int, ...] = None,
                    use_gaussian: bool = False, pad_border_mode: str = "constant",
                    pad_kwargs: dict = None, all_in_gpu: bool = False,
                    verbose: bool = True, mixed_precision: bool = True) -> Tuple[np.ndarray, np.ndarray]:
@@ -115,6 +116,9 @@ class SegmentationNetwork(NeuralNetwork):
 
         if verbose: print("debug: mirroring", do_mirroring, "mirror_axes", mirror_axes)
 
+        print('Device: ' + str(self.get_device()))
+        # assert self.get_device() != "cpu", "CPU not implemented"
+
         if pad_kwargs is None:
             pad_kwargs = {'constant_values': 0}
 
@@ -142,20 +146,24 @@ class SegmentationNetwork(NeuralNetwork):
             with torch.no_grad():
                 if self.conv_op == nn.Conv3d:
                     if use_sliding_window:
-                        res = self._internal_predict_3D_3Dconv_tiled(x, step_size, do_mirroring, mirror_axes, patch_size,
+                        res = self._internal_predict_3D_3Dconv_tiled(x, step_size, do_mirroring, mirror_axes,
+                                                                     patch_size,
                                                                      regions_class_order, use_gaussian, pad_border_mode,
                                                                      pad_kwargs=pad_kwargs, all_in_gpu=all_in_gpu,
                                                                      verbose=verbose)
                     else:
-                        res = self._internal_predict_3D_3Dconv(x, patch_size, do_mirroring, mirror_axes, regions_class_order,
+                        res = self._internal_predict_3D_3Dconv(x, patch_size, do_mirroring, mirror_axes,
+                                                               regions_class_order,
                                                                pad_border_mode, pad_kwargs=pad_kwargs, verbose=verbose)
                 elif self.conv_op == nn.Conv2d:
                     if use_sliding_window:
-                        res = self._internal_predict_3D_2Dconv_tiled(x, patch_size, do_mirroring, mirror_axes, step_size,
+                        res = self._internal_predict_3D_2Dconv_tiled(x, patch_size, do_mirroring, mirror_axes,
+                                                                     step_size,
                                                                      regions_class_order, use_gaussian, pad_border_mode,
                                                                      pad_kwargs, all_in_gpu, False)
                     else:
-                        res = self._internal_predict_3D_2Dconv(x, patch_size, do_mirroring, mirror_axes, regions_class_order,
+                        res = self._internal_predict_3D_2Dconv(x, patch_size, do_mirroring, mirror_axes,
+                                                               regions_class_order,
                                                                pad_border_mode, pad_kwargs, all_in_gpu, False)
                 else:
                     raise RuntimeError("Invalid conv op, cannot determine what dimensionality (2d/3d) the network is")
@@ -208,6 +216,8 @@ class SegmentationNetwork(NeuralNetwork):
 
         if verbose: print("debug: mirroring", do_mirroring, "mirror_axes", mirror_axes)
 
+        assert self.get_device() != "cpu", "CPU not implemented"
+
         if pad_kwargs is None:
             pad_kwargs = {'constant_values': 0}
 
@@ -231,11 +241,13 @@ class SegmentationNetwork(NeuralNetwork):
             with torch.no_grad():
                 if self.conv_op == nn.Conv2d:
                     if use_sliding_window:
-                        res = self._internal_predict_2D_2Dconv_tiled(x, step_size, do_mirroring, mirror_axes, patch_size,
+                        res = self._internal_predict_2D_2Dconv_tiled(x, step_size, do_mirroring, mirror_axes,
+                                                                     patch_size,
                                                                      regions_class_order, use_gaussian, pad_border_mode,
                                                                      pad_kwargs, all_in_gpu, verbose)
                     else:
-                        res = self._internal_predict_2D_2Dconv(x, patch_size, do_mirroring, mirror_axes, regions_class_order,
+                        res = self._internal_predict_2D_2Dconv(x, patch_size, do_mirroring, mirror_axes,
+                                                               regions_class_order,
                                                                pad_border_mode, pad_kwargs, verbose)
                 else:
                     raise RuntimeError("Invalid conv op, cannot determine what dimensionality (2d/3d) the network is")
@@ -259,15 +271,17 @@ class SegmentationNetwork(NeuralNetwork):
         return gaussian_importance_map
 
     @staticmethod
-    def _compute_steps_for_sliding_window(patch_size: Tuple[int, ...], image_size: Tuple[int, ...], step_size: float) -> List[List[int]]:
+    def _compute_steps_for_sliding_window(patch_size: Tuple[int, ...], image_size: Tuple[int, ...], step_size: float) -> \
+    List[List[int]]:
         assert [i >= j for i, j in zip(image_size, patch_size)], "image size must be as large or larger than patch_size"
         assert 0 < step_size <= 1, 'step_size must be larger than 0 and smaller or equal to 1'
 
         # our step width is patch_size*step_size at most, but can be narrower. For example if we have image size of
-        # 110, patch size of 64 and step_size of 0.5, then we want to make 3 steps starting at coordinate 0, 23, 46
+        # 110, patch size of 32 and step_size of 0.5, then we want to make 4 steps starting at coordinate 0, 27, 55, 78
         target_step_sizes_in_voxels = [i * step_size for i in patch_size]
 
-        num_steps = [int(np.ceil((i - k) / j)) + 1 for i, j, k in zip(image_size, target_step_sizes_in_voxels, patch_size)]
+        num_steps = [int(np.ceil((i - k) / j)) + 1 for i, j, k in
+                     zip(image_size, target_step_sizes_in_voxels, patch_size)]
 
         steps = []
         for dim in range(len(patch_size)):
@@ -290,7 +304,7 @@ class SegmentationNetwork(NeuralNetwork):
                                           verbose: bool) -> Tuple[np.ndarray, np.ndarray]:
         # better safe than sorry
         assert len(x.shape) == 4, "x must be (c, x, y, z)"
-
+        # assert self.get_device() != "cpu"
         if verbose: print("step_size:", step_size)
         if verbose: print("do mirror:", do_mirroring)
 
@@ -326,11 +340,9 @@ class SegmentationNetwork(NeuralNetwork):
                 if verbose: print("using precomputed Gaussian")
                 gaussian_importance_map = self._gaussian_3d
 
-            gaussian_importance_map = torch.from_numpy(gaussian_importance_map)
-
-            #predict on cpu if cuda not available
-            if torch.cuda.is_available():
-                gaussian_importance_map = gaussian_importance_map.cuda(self.get_device(), non_blocking=True)
+            gaussian_importance_map = torch.from_numpy(
+                gaussian_importance_map)  # .cuda(self.get_device(), non_blocking=True)
+            gaussian_importance_map = to_cuda(gaussian_importance_map, gpu_id=self.get_device())
 
         else:
             gaussian_importance_map = None
@@ -357,12 +369,12 @@ class SegmentationNetwork(NeuralNetwork):
                                              device=self.get_device())
 
             if verbose: print("moving data to GPU")
-            data = torch.from_numpy(data).cuda(self.get_device(), non_blocking=True)
+            data = torch.from_numpy(data)  # .cuda(self.get_device(), non_blocking=True)
+            data = to_cuda(data, gpu_id=self.get_device())
 
             if verbose: print("initializing result_numsamples (on GPU)")
             aggregated_nb_of_predictions = torch.zeros([self.num_classes] + list(data.shape[1:]), dtype=torch.half,
                                                        device=self.get_device())
-
         else:
             if use_gaussian and num_tiles > 1:
                 add_for_nb_of_preds = self._gaussian_3d
@@ -434,7 +446,7 @@ class SegmentationNetwork(NeuralNetwork):
         This one does fully convolutional inference. No sliding window
         """
         assert len(x.shape) == 3, "x must be (c, x, y)"
-
+        assert self.get_device() != "cpu"
         assert self.input_shape_must_be_divisible_by is not None, 'input_shape_must_be_divisible_by must be set to ' \
                                                                   'run _internal_predict_2D_2Dconv'
         if verbose: print("do mirror:", do_mirroring)
@@ -470,7 +482,7 @@ class SegmentationNetwork(NeuralNetwork):
         This one does fully convolutional inference. No sliding window
         """
         assert len(x.shape) == 4, "x must be (c, x, y, z)"
-
+        assert self.get_device() != "cpu"
         assert self.input_shape_must_be_divisible_by is not None, 'input_shape_must_be_divisible_by must be set to ' \
                                                                   'run _internal_predict_3D_3Dconv'
         if verbose: print("do mirror:", do_mirroring)
@@ -502,23 +514,16 @@ class SegmentationNetwork(NeuralNetwork):
                                            do_mirroring: bool = True,
                                            mult: np.ndarray or torch.tensor = None) -> torch.tensor:
         assert len(x.shape) == 5, 'x must be (b, c, x, y, z)'
+        # everything in here takes place on the GPU. If x and mult are not yet on GPU this will be taken care of here
+        # we now return a cuda tensor! Not numpy array!
 
-        # if cuda available:
-        #   everything in here takes place on the GPU. If x and mult are not yet on GPU this will be taken care of here
-        #   we now return a cuda tensor! Not numpy array!
-
-        x = maybe_to_torch(x)
+        x = to_cuda(maybe_to_torch(x), gpu_id=self.get_device())
         result_torch = torch.zeros([1, self.num_classes] + list(x.shape[2:]),
-                                   dtype=torch.float)
-
-        if torch.cuda.is_available():
-            x = to_cuda(x, gpu_id=self.get_device())
-            result_torch = result_torch.cuda(self.get_device(), non_blocking=True)
+                                   dtype=torch.float)  # .cuda(self.get_device(), non_blocking=True)
+        result_torch = to_cuda(result_torch, gpu_id=self.get_device())
 
         if mult is not None:
-            mult = maybe_to_torch(mult)
-            if torch.cuda.is_available():
-                mult = to_cuda(mult, gpu_id=self.get_device())
+            mult = to_cuda(maybe_to_torch(mult), gpu_id=self.get_device())
 
         if do_mirroring:
             mirror_idx = 8
@@ -533,11 +538,11 @@ class SegmentationNetwork(NeuralNetwork):
                 result_torch += 1 / num_results * pred
 
             if m == 1 and (2 in mirror_axes):
-                pred = self.inference_apply_nonlin(self(torch.flip(x, (4, ))))
+                pred = self.inference_apply_nonlin(self(torch.flip(x, (4,))))
                 result_torch += 1 / num_results * torch.flip(pred, (4,))
 
             if m == 2 and (1 in mirror_axes):
-                pred = self.inference_apply_nonlin(self(torch.flip(x, (3, ))))
+                pred = self.inference_apply_nonlin(self(torch.flip(x, (3,))))
                 result_torch += 1 / num_results * torch.flip(pred, (3,))
 
             if m == 3 and (2 in mirror_axes) and (1 in mirror_axes):
@@ -545,7 +550,7 @@ class SegmentationNetwork(NeuralNetwork):
                 result_torch += 1 / num_results * torch.flip(pred, (4, 3))
 
             if m == 4 and (0 in mirror_axes):
-                pred = self.inference_apply_nonlin(self(torch.flip(x, (2, ))))
+                pred = self.inference_apply_nonlin(self(torch.flip(x, (2,))))
                 result_torch += 1 / num_results * torch.flip(pred, (2,))
 
             if m == 5 and (0 in mirror_axes) and (2 in mirror_axes):
@@ -568,23 +573,17 @@ class SegmentationNetwork(NeuralNetwork):
     def _internal_maybe_mirror_and_pred_2D(self, x: Union[np.ndarray, torch.tensor], mirror_axes: tuple,
                                            do_mirroring: bool = True,
                                            mult: np.ndarray or torch.tensor = None) -> torch.tensor:
-        # if cuda available:
-        #   everything in here takes place on the GPU. If x and mult are not yet on GPU this will be taken care of here
-        #   we now return a cuda tensor! Not numpy array!
-
+        # everything in here takes place on the GPU. If x and mult are not yet on GPU this will be taken care of here
+        # we now return a cuda tensor! Not numpy array!
         assert len(x.shape) == 4, 'x must be (b, c, x, y)'
 
-        x = maybe_to_torch(x)
-        result_torch = torch.zeros([x.shape[0], self.num_classes] + list(x.shape[2:]), dtype=torch.float)
-
-        if torch.cuda.is_available():
-            x = to_cuda(x, gpu_id=self.get_device())
-            result_torch = result_torch.cuda(self.get_device(), non_blocking=True)
+        x = to_cuda(maybe_to_torch(x), gpu_id=self.get_device())
+        result_torch = torch.zeros([x.shape[0], self.num_classes] + list(x.shape[2:]),
+                                   dtype=torch.float)  # .cuda(self.get_device(), non_blocking=True)
+        result_torch = to_cuda(result_torch, gpu_id=self.get_device())
 
         if mult is not None:
-            mult = maybe_to_torch(mult)
-            if torch.cuda.is_available():
-                mult = to_cuda(mult, gpu_id=self.get_device())
+            mult = to_cuda(maybe_to_torch(mult), gpu_id=self.get_device())
 
         if do_mirroring:
             mirror_idx = 4
@@ -599,12 +598,12 @@ class SegmentationNetwork(NeuralNetwork):
                 result_torch += 1 / num_results * pred
 
             if m == 1 and (1 in mirror_axes):
-                pred = self.inference_apply_nonlin(self(torch.flip(x, (3, ))))
-                result_torch += 1 / num_results * torch.flip(pred, (3, ))
+                pred = self.inference_apply_nonlin(self(torch.flip(x, (3,))))
+                result_torch += 1 / num_results * torch.flip(pred, (3,))
 
             if m == 2 and (0 in mirror_axes):
-                pred = self.inference_apply_nonlin(self(torch.flip(x, (2, ))))
-                result_torch += 1 / num_results * torch.flip(pred, (2, ))
+                pred = self.inference_apply_nonlin(self(torch.flip(x, (2,))))
+                result_torch += 1 / num_results * torch.flip(pred, (2,))
 
             if m == 3 and (0 in mirror_axes) and (1 in mirror_axes):
                 pred = self.inference_apply_nonlin(self(torch.flip(x, (3, 2))))
@@ -621,7 +620,7 @@ class SegmentationNetwork(NeuralNetwork):
                                           verbose: bool) -> Tuple[np.ndarray, np.ndarray]:
         # better safe than sorry
         assert len(x.shape) == 3, "x must be (c, x, y)"
-
+        assert self.get_device() != "cpu"
         if verbose: print("step_size:", step_size)
         if verbose: print("do mirror:", do_mirroring)
 
@@ -656,10 +655,9 @@ class SegmentationNetwork(NeuralNetwork):
                 if verbose: print("using precomputed Gaussian")
                 gaussian_importance_map = self._gaussian_2d
 
-            gaussian_importance_map = torch.from_numpy(gaussian_importance_map)
-            if torch.cuda.is_available():
-                gaussian_importance_map = gaussian_importance_map.cuda(self.get_device(), non_blocking=True)
-
+            gaussian_importance_map = torch.from_numpy(
+                gaussian_importance_map)  # .cuda(self.get_device(), non_blocking=True)
+            gaussian_importance_map = to_cuda(gaussian_importance_map, gpu_id=self.get_device())
         else:
             gaussian_importance_map = None
 
@@ -685,7 +683,8 @@ class SegmentationNetwork(NeuralNetwork):
                                              device=self.get_device())
 
             if verbose: print("moving data to GPU")
-            data = torch.from_numpy(data).cuda(self.get_device(), non_blocking=True)
+            data = torch.from_numpy(data)  # .cuda(self.get_device(), non_blocking=True)
+            data = to_cuda(data, gpu_id=self.get_device())
 
             if verbose: print("initializing result_numsamples (on GPU)")
             aggregated_nb_of_predictions = torch.zeros([self.num_classes] + list(data.shape[1:]), dtype=torch.half,
@@ -802,7 +801,7 @@ class SegmentationNetwork(NeuralNetwork):
     def _internal_predict_3D_2Dconv_tiled(self, x: np.ndarray, patch_size: Tuple[int, int], do_mirroring: bool,
                                           mirror_axes: tuple = (0, 1), step_size: float = 0.5,
                                           regions_class_order: tuple = None, use_gaussian: bool = False,
-                                          pad_border_mode: str = "edge", pad_kwargs: dict =None,
+                                          pad_border_mode: str = "edge", pad_kwargs: dict = None,
                                           all_in_gpu: bool = False,
                                           verbose: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         if all_in_gpu:
@@ -837,7 +836,6 @@ if __name__ == '__main__':
 
     print(SegmentationNetwork._compute_steps_for_sliding_window((30, 224, 224), (30, 224, 224), 1))
     print(SegmentationNetwork._compute_steps_for_sliding_window((30, 224, 224), (30, 224, 224), 0.125))
-
 
     print(SegmentationNetwork._compute_steps_for_sliding_window((123, 54, 123), (246, 162, 369), 0.25))
 

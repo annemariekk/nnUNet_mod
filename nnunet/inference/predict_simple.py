@@ -22,6 +22,9 @@ from batchgenerators.utilities.file_and_folder_operations import join, isdir, sa
 from nnunet.utilities.task_name_id_conversion import convert_id_to_task_name
 from time import time
 
+if not torch.cuda.is_available():
+    print("CPU mode. Setting num of threads to 8.")
+    torch.set_num_threads(8)
 
 def main():
     parser = argparse.ArgumentParser()
