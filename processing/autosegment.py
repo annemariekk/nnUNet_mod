@@ -28,19 +28,33 @@ import errno
 import subprocess
 from datetime import datetime
 import argparse
+import ast
 from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--path", type=str, default='/home/jruffle/patient_studies/', help='path of subject data, default=/home/jruffle/patient_studies/')
-parser.add_argument("--subs", type=str, default='subs.txt', help='subject textfile for script to iterate through, default=subs.txt')
+parser.add_argument("--inpath", type=str, default='/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/data/CP_pnt_TYPE/', help='path of subject data, default=/Users/knilla/Documents/Data/Patients/BrainSegmentation/CP/NIFTI/')
+parser.add_argument("--outpath", type=str, default='/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/results/CP_pnts/', help='path of subject data, default=/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/results/CP_pnts/')
+parser.add_argument("--subs", type=str, default='subs.txt', help='path to subject textfile for script to iterate through, default=subs.txt')
 parser.add_argument("--mode", type=str, default='tissue', help='Whether to perform multiclass lesion tissue segmentation, or general abnormality detection, option is either "tissue" or "abnormality", default=tissue')
+parser.add_argument("--sequences", type=str, default="['FLAIR','T1','T1CE','T2']", help='List of images to use in the segmentation.')
 parser.add_argument("--nocleanup", action='store_true', help='whether to prevent clean-up of temporary files, disabled by default')
 args = parser.parse_args()
 
 sequences = ['FLAIR','T1','T1CE','T2']
-inpath = args.path
-subs = np.loadtxt(inpath+args.subs,dtype=str)
+inpath = args.inpath
+outpath = args.outpath
+subs = np.loadtxt(args.subs, dtype=str)
+sequences_chosen = ast.literal_eval(args.sequences)
+print(sequences_chosen)
+mode = args.mode
+
+# sequences = ['FLAIR','T1','T1CE','T2']
+# inpath = '/Users/knilla/Documents/Data/Patients/BrainSegmentation/CP/NIFTI/'
+# outpath = '/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/results/CP_pnts/'
+# subs = np.loadtxt('/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/processing/subs.txt', dtype=str)
+# sequences_chosen = ['FLAIR', 'T2']
+# mode = 'tissue'
 print("Number of unique patients: "+str(len(subs)))
 
 Task890_BrainTumour2021_Flair = sorted(['FLAIR'])
@@ -122,27 +136,34 @@ for i in tqdm(range(len(subs))):
         sequences_available = [w.replace('image_', '') for w in sequences_available]
         print("")
         print('Imaging available: '+str(sequences_available))
+        # Test if sequences_available matches sequences_chosen
+        sequences_found = True
+        if all(item in sequences_available for item in sequences_chosen):
+            sequences_available = sequences_chosen
+            superres_df = superres_df[superres_df.iloc[:, -1].str[:-7].isin(sequences_chosen)]
+        else:
+            sequences_found = False
 
         ###one sequence models
-        if sequences_available == Task890_BrainTumour2021_Flair and sequences_available == Task894_BrainTumour2021_FlairAbnormality:
+        if sequences_available == Task890_BrainTumour2021_Flair and sequences_available == Task894_BrainTumour2021_FlairAbnormality and sequences_found:
             tissue_class_model = 'Task890_BrainTumour2021_Flair'
             abnormality_model = 'Task894_BrainTumour2021_FlairAbnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task891_BrainTumour2021_T1 and sequences_available == Task895_BrainTumour2021_T1Abnormality:
+        if sequences_available == Task891_BrainTumour2021_T1 and sequences_available == Task895_BrainTumour2021_T1Abnormality and sequences_found:
             tissue_class_model = 'Task891_BrainTumour2021_T1'
             abnormality_model = 'Task895_BrainTumour2021_T1Abnormality'
             revised_filenames = dict({'T1.nii.gz':'image_0000.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task893_BrainTumour2021_T1CE and sequences_available == Task897_BrainTumour2021_T1CEAbnormality:
+        if sequences_available == Task893_BrainTumour2021_T1CE and sequences_available == Task897_BrainTumour2021_T1CEAbnormality and sequences_found:
             tissue_class_model = 'Task893_BrainTumour2021_T1CE'
             abnormality_model = 'Task897_BrainTumour2021_T1CEAbnormality'
             revised_filenames = dict({'T1CE.nii.gz':'image_0000.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task892_BrainTumour2021_T2 and sequences_available == Task896_BrainTumour2021_T2Abnormality:
+        if sequences_available == Task892_BrainTumour2021_T2 and sequences_available == Task896_BrainTumour2021_T2Abnormality and sequences_found:
             tissue_class_model = 'Task892_BrainTumour2021_T2'
             abnormality_model = 'Task896_BrainTumour2021_T2Abnormality'
             revised_filenames = dict({'T2.nii.gz':'image_0000.nii.gz'})
@@ -150,42 +171,42 @@ for i in tqdm(range(len(subs))):
 
 
         ###two sequence models
-        if sequences_available == Task898_BrainTumour2021_FlairT1 and sequences_available == Task908_BrainTumour2021_FlairT1Abnormality:
+        if sequences_available == Task898_BrainTumour2021_FlairT1 and sequences_available == Task908_BrainTumour2021_FlairT1Abnormality and sequences_found:
             tissue_class_model = 'Task898_BrainTumour2021_FlairT1'
             abnormality_model = 'Task908_BrainTumour2021_FlairT1Abnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
                                      'T1.nii.gz':'image_0001.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task899_BrainTumour2021_FlairT2 and sequences_available == Task909_BrainTumour2021_FlairT2Abnormality:
+        if sequences_available == Task899_BrainTumour2021_FlairT2 and sequences_available == Task909_BrainTumour2021_FlairT2Abnormality and sequences_found:
             tissue_class_model = 'Task899_BrainTumour2021_FlairT2'
             abnormality_model = 'Task909_BrainTumour2021_FlairT2Abnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
                                      'T2.nii.gz':'image_0001.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task900_BrainTumour2021_FlairT1CE and sequences_available == Task910_BrainTumour2021_FlairT1CEAbnormality:
+        if sequences_available == Task900_BrainTumour2021_FlairT1CE and sequences_available == Task910_BrainTumour2021_FlairT1CEAbnormality and sequences_found:
             tissue_class_model = 'Task900_BrainTumour2021_FlairT1CE'
             abnormality_model = 'Task910_BrainTumour2021_FlairT1CEAbnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
                                      'T1CE.nii.gz':'image_0001.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task901_BrainTumour2021_T1T2 and sequences_available == Task911_BrainTumour2021_T1T2Abnormality:
+        if sequences_available == Task901_BrainTumour2021_T1T2 and sequences_available == Task911_BrainTumour2021_T1T2Abnormality and sequences_found:
             tissue_class_model = 'Task901_BrainTumour2021_T1T2'
             abnormality_model = 'Task911_BrainTumour2021_T1T2Abnormality'
             revised_filenames = dict({'T1.nii.gz':'image_0000.nii.gz',
                                      'T2.nii.gz':'image_0001.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task902_BrainTumour2021_T1T1CE and sequences_available == Task912_BrainTumour2021_T1T1CEAbnormality:
+        if sequences_available == Task902_BrainTumour2021_T1T1CE and sequences_available == Task912_BrainTumour2021_T1T1CEAbnormality and sequences_found:
             tissue_class_model = 'Task902_BrainTumour2021_T1T1CE'
             abnormality_model = 'Task912_BrainTumour2021_T1T1CEAbnormality'
             revised_filenames = dict({'T1.nii.gz':'image_0000.nii.gz',
                                      'T1CE.nii.gz':'image_0001.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task903_BrainTumour2021_T2T1CE and sequences_available == Task913_BrainTumour2021_T2T1CEAbnormality:
+        if sequences_available == Task903_BrainTumour2021_T2T1CE and sequences_available == Task913_BrainTumour2021_T2T1CEAbnormality and sequences_found:
             tissue_class_model = 'Task903_BrainTumour2021_T2T1CE'
             abnormality_model = 'Task913_BrainTumour2021_T2T1CEAbnormality'
             revised_filenames = dict({'T1CE.nii.gz':'image_0000.nii.gz',
@@ -194,7 +215,7 @@ for i in tqdm(range(len(subs))):
 
 
         ###three sequence models
-        if sequences_available == Task904_BrainTumour2021_FlairT1T2 and sequences_available == Task914_BrainTumour2021_FlairT1T2Abnormality:
+        if sequences_available == Task904_BrainTumour2021_FlairT1T2 and sequences_available == Task914_BrainTumour2021_FlairT1T2Abnormality and sequences_found:
             tissue_class_model = 'Task904_BrainTumour2021_FlairT1T2'
             abnormality_model = 'Task914_BrainTumour2021_FlairT1T2Abnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
@@ -202,7 +223,7 @@ for i in tqdm(range(len(subs))):
                                      'T2.nii.gz':'image_0002.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task905_BrainTumour2021_FlairT1T1CE and sequences_available == Task915_BrainTumour2021_FlairT1T1CEAbnormality:
+        if sequences_available == Task905_BrainTumour2021_FlairT1T1CE and sequences_available == Task915_BrainTumour2021_FlairT1T1CEAbnormality and sequences_found:
             tissue_class_model = 'Task905_BrainTumour2021_FlairT1T1CE'
             abnormality_model = 'Task915_BrainTumour2021_FlairT1T1CEAbnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
@@ -210,7 +231,7 @@ for i in tqdm(range(len(subs))):
                                      'T1CE.nii.gz':'image_0002.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task906_BrainTumour2021_FlairT2T1CE and sequences_available == Task916_BrainTumour2021_FlairT2T1CEAbnormality:
+        if sequences_available == Task906_BrainTumour2021_FlairT2T1CE and sequences_available == Task916_BrainTumour2021_FlairT2T1CEAbnormality and sequences_found:
             tissue_class_model = 'Task906_BrainTumour2021_FlairT2T1CE'
             abnormality_model = 'Task916_BrainTumour2021_FlairT2T1CEAbnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
@@ -218,7 +239,7 @@ for i in tqdm(range(len(subs))):
                                      'T2.nii.gz':'image_0002.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
-        if sequences_available == Task907_BrainTumour2021_T1T2T1CE and sequences_available == Task917_BrainTumour2021_T1T2T1CEAbnormality:
+        if sequences_available == Task907_BrainTumour2021_T1T2T1CE and sequences_available == Task917_BrainTumour2021_T1T2T1CEAbnormality and sequences_found:
             tissue_class_model = 'Task907_BrainTumour2021_T1T2T1CE'
             abnormality_model = 'Task917_BrainTumour2021_T1T2T1CEAbnormality'
             revised_filenames = dict({'T1.nii.gz':'image_0000.nii.gz',
@@ -228,7 +249,7 @@ for i in tqdm(range(len(subs))):
 
 
         ###four sequence models
-        if sequences_available == Task918_BrainTumour2021_allseq_bratsonly and sequences_available == Task919_BrainTumour2021_allseq_bratsonly_abnormality:
+        if sequences_available == Task918_BrainTumour2021_allseq_bratsonly and sequences_available == Task919_BrainTumour2021_allseq_bratsonly_abnormality and sequences_found:
             tissue_class_model = 'Task918_BrainTumour2021_allseq_bratsonly'
             abnormality_model = 'Task919_BrainTumour2021_allseq_bratsonly_abnormality'
             revised_filenames = dict({'FLAIR.nii.gz':'image_0000.nii.gz',
@@ -238,31 +259,34 @@ for i in tqdm(range(len(subs))):
 
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
+        if sequences_found:
+            for i, row in superres_df.iterrows():
+                raw_fname = '/'.join(row[:len(row)])
+                seq = superres_df.loc[i].iloc[-1]
+                revised_label_path = '/'.join(row[:len(row)-2])+'/'+patient_id+'/segmentation/tmpdir/'+str(revised_filenames[seq])
+                shutil.copy(raw_fname,revised_label_path)
 
-        for i, row in superres_df.iterrows():
-            raw_fname = '/'.join(row[:len(row)])
-            seq = superres_df.iloc[i,-1]
-            revised_label_path = '/'.join(row[:len(row)-2])+'/'+patient_id+'/segmentation/tmpdir/'+str(revised_filenames[seq])
-            shutil.copy(raw_fname,revised_label_path)
+            INPUT_FOLDER = '/'.join(row[:len(row)-2])+'/'+patient_id+'/'+'segmentation/tmpdir/'
+            OUTPUT_FOLDER = outpath+patient_id+'/'+'_'.join(sequences_available)+'/'+mode+'/'
+            if not os.path.exists(OUTPUT_FOLDER):
+                os.makedirs(OUTPUT_FOLDER)
 
-        INPUT_FOLDER = '/'.join(row[:len(row)-2])+'/'+patient_id+'/'+'segmentation/tmpdir/'
-        OUTPUT_FOLDER = '/'.join(row[:len(row)-2])+'/'+patient_id+'/'+'/segmentation/'
+            print("")
+            if mode=='tissue':
+                print("Running tissue class inference...")
+                bashCommand = 'nnUNet_predict -i '+str(INPUT_FOLDER)+' -o '+str(OUTPUT_FOLDER)+' -t '+str(tissue_class_model)+' -f all'
+                print(bashCommand)
+                subprocess.run(bashCommand,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+                print("Inference complete!")
 
-        print("")
-        if args.mode=='tissue':
-            print("Running tissue class inference...")
-            bashCommand = 'nnUNet_predict -i '+str(INPUT_FOLDER)+' -o '+str(OUTPUT_FOLDER)+' -t '+str(tissue_class_model)+' -f all'
-            print(bashCommand)
-            subprocess.run(bashCommand,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-            print("Inference complete!")
-
-
-        if args.mode=='abnormality':
-            print("Running general abnormality inference...")
-            bashCommand = 'nnUNet_predict -i '+str(INPUT_FOLDER)+' -o '+str(OUTPUT_FOLDER)+' -t '+str(abnormality_model)+' -f all'
-            print(bashCommand)
-            subprocess.run(bashCommand,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-            print("Inference complete!")
+            if mode=='abnormality':
+                print("Running general abnormality inference...")
+                bashCommand = 'nnUNet_predict -i '+str(INPUT_FOLDER)+' -o '+str(OUTPUT_FOLDER)+' -t '+str(abnormality_model)+' -f all'
+                print(bashCommand)
+                subprocess.run(bashCommand,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+                print("Inference complete!")
+        else:
+            print('**Warning** Required imaging not found, moving to next accession')
 
     else:
         print('**Warning** No usable imaging found, moving to next accession')
