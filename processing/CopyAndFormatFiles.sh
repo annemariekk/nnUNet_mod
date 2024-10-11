@@ -8,7 +8,7 @@ DIRECTORY='/Users/knilla/Documents/Data/Patients/BrainSegmentation/CP/NIFTI'
 NEW_DIR="./CP_pnt_TYPE"
 mkdir -p "$NEW_DIR"
 
-# Loop through the subdirectories with the format test_XX
+# Loop through the subdirectories with the format CP_pnt_XX
 for SUBDIR in "$DIRECTORY"/CP_pnt_*; do
     if [ -d "$SUBDIR" ]; then
         # Extract the number XX from the subdirectory name
@@ -29,17 +29,38 @@ for SUBDIR in "$DIRECTORY"/CP_pnt_*; do
         T1CE_DST="$target_dir/T1CE.nii.gz"
         T2_DST="$target_dir/T2.nii.gz"
 
-        # FLAIR_DST="$NEW_DIR/CP_pnt_${NUMBER}_FL.nii.gz"
-        # T1_DST="$NEW_DIR/CP_pnt_${NUMBER}_T1.nii.gz"
-        # T1CE_DST="$NEW_DIR/CP_pnt_${NUMBER}_T1CE.nii.gz"
-        # T2_DST="$NEW_DIR/CP_pnt_${NUMBER}_T2.nii.gz"
+        # Initialize a flag and a variable to track copied files
+        files_copied=false
+        copied_files_list=""
 
-        echo "$SUBDIR --> $target_dir"
+        # Copy and rename the files if they exist at the source and don't already exist at the destination
+        if [ -f "$FLAIR_SRC" ] && [ ! -f "$FLAIR_DST" ]; then
+            cp "$FLAIR_SRC" "$FLAIR_DST"
+            files_copied=true
+            copied_files_list+="FLAIR.nii.gz "
+        fi
 
-        # Copy and rename the files if they exist
-        [ -f "$FLAIR_SRC" ] && cp "$FLAIR_SRC" "$FLAIR_DST"
-        [ -f "$T1_SRC" ] && cp "$T1_SRC" "$T1_DST"
-        [ -f "$T1CE_SRC" ] && cp "$T1CE_SRC" "$T1CE_DST"
-        [ -f "$T2_SRC" ] && cp "$T2_SRC" "$T2_DST"
+        if [ -f "$T1_SRC" ] && [ ! -f "$T1_DST" ]; then
+            cp "$T1_SRC" "$T1_DST"
+            files_copied=true
+            copied_files_list+="T1.nii.gz "
+        fi
+
+        if [ -f "$T1CE_SRC" ] && [ ! -f "$T1CE_DST" ]; then
+            cp "$T1CE_SRC" "$T1CE_DST"
+            files_copied=true
+            copied_files_list+="T1CE.nii.gz "
+        fi
+
+        if [ -f "$T2_SRC" ] && [ ! -f "$T2_DST" ]; then
+            cp "$T2_SRC" "$T2_DST"
+            files_copied=true
+            copied_files_list+="T2.nii.gz "
+        fi
+
+        # Only print the message if any file was copied, and list the copied files
+        if [ "$files_copied" = true ]; then
+            echo "$SUBDIR --> $target_dir (Copied files: $copied_files_list)"
+        fi
     fi
 done
