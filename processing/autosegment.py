@@ -44,18 +44,18 @@ args = parser.parse_args()
 sequences = ['FLAIR','T1','T1CE','T2']
 inpath = args.inpath
 outpath = args.outpath
-subs = np.loadtxt(args.subs, dtype=str)
+subs = np.atleast_1d(np.loadtxt(args.subs, dtype=str))
 sequences_chosen = ast.literal_eval(args.sequences)
 print(sequences_chosen)
 mode = args.mode
 
 # sequences = ['FLAIR','T1','T1CE','T2']
-# inpath = '/Users/knilla/Documents/Data/Patients/BrainSegmentation/CP/NIFTI/'
-# outpath = '/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/results/CP_pnts/'
-# subs = np.loadtxt('/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/processing/subs.txt', dtype=str)
+# inpath='/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/data/OtherTest/'
+# outpath='/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/results/OtherTest/'
+# subs = np.atleast_1d(np.loadtxt('/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/processing/subs.txt', dtype=str))
 # sequences_chosen = ['FLAIR', 'T2']
 # mode = 'tissue'
-print("Number of unique patients: "+str(len(subs)))
+print("Number of unique patients: "+str(subs.size))
 
 Task890_BrainTumour2021_Flair = sorted(['FLAIR'])
 Task891_BrainTumour2021_T1 = sorted(['T1'])
@@ -94,7 +94,7 @@ Task917_BrainTumour2021_T1T2T1CEAbnormality = sorted(['T1', 'T2', 'T1CE'])
 Task918_BrainTumour2021_allseq_bratsonly = sorted(['FLAIR', 'T1', 'T2', 'T1CE'])
 Task919_BrainTumour2021_allseq_bratsonly_abnormality = sorted(['FLAIR', 'T1', 'T2', 'T1CE'])
 
-for i in tqdm(range(len(subs))):
+for i in tqdm(range(subs.size)):
     patient_id = subs[i]
     start = datetime.now()
     print("")

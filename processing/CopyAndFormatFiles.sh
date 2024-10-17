@@ -2,14 +2,16 @@ PARENTDIR='/Users/knilla/Documents/BrainSegmentation/nnUNet_mod/data'
 cd $PARENTDIR
 
 # Reformat and move NIFTI files
-DIRECTORY='/Users/knilla/Documents/Data/Patients/BrainSegmentation/CP/NIFTI'
+DIRECTORY='/Users/knilla/Documents/Data/Patients/BrainSegmentation/OtherTest/NIFTI'
 
 # Create the NEW directory if it doesn't exist
-NEW_DIR="./CP_pnt_TYPE"
+NEW_DIR="./OtherTest"
 mkdir -p "$NEW_DIR"
 
+study_ID_base="brainseg_pnt"
+
 # Loop through the subdirectories with the format CP_pnt_XX
-for SUBDIR in "$DIRECTORY"/CP_pnt_*; do
+for SUBDIR in "$DIRECTORY"/"$study_ID_base"_*; do
     if [ -d "$SUBDIR" ]; then
         # Extract the number XX from the subdirectory name
         BASENAME=$(basename "$SUBDIR")
@@ -21,7 +23,7 @@ for SUBDIR in "$DIRECTORY"/CP_pnt_*; do
         T1CE_SRC="$SUBDIR/outputDir/T1CE_to_SRI_brain.nii.gz"
         T2_SRC="$SUBDIR/outputDir/T2_to_SRI_brain.nii.gz"
 
-        target_dir="$NEW_DIR/CP_pnt_${NUMBER}"
+        target_dir="$NEW_DIR"/"$study_ID_base"_"${NUMBER}"
         mkdir -p "$target_dir"
 
         FLAIR_DST="$target_dir/FLAIR.nii.gz"
