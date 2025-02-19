@@ -166,6 +166,7 @@ for i in tqdm(range(subs.size)):
         if sequences_available == Task892_BrainTumour2021_T2 and sequences_available == Task896_BrainTumour2021_T2Abnormality and sequences_found:
             tissue_class_model = 'Task892_BrainTumour2021_T2'
             abnormality_model = 'Task896_BrainTumour2021_T2Abnormality'
+            boyd_model = "Task871_BrainTumourT2PedsPreTrainedEncoderFrozen"
             revised_filenames = dict({'T2.nii.gz':'image_0000.nii.gz'})
             print("Found candidate models: "+str(tissue_class_model)+', '+str(abnormality_model))
 
@@ -285,6 +286,15 @@ for i in tqdm(range(subs.size)):
                 print(bashCommand)
                 subprocess.run(bashCommand,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
                 print("Inference complete!")
+
+            if mode=='boyd' and boyd_model:
+                print("Running general abnormality inference...")
+                bashCommand = ('nnUNet_predict -i '+str(INPUT_FOLDER)+' -o '+str(OUTPUT_FOLDER)+' -t '+str(boyd_model)+
+                               ' -m 3d_fullres --save_npz')
+                print(bashCommand)
+                subprocess.run(bashCommand,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+                print("Inference complete!")
+
         else:
             print('**Warning** Required imaging not found, moving to next accession')
 
