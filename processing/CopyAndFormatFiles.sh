@@ -54,11 +54,12 @@ while IFS= read -r pat; do
     done
 
     old_ifs="$IFS"
-    IFS=$'\n' sorted_date_dirs=($(sort <<<"${date_dirs[*]}"))
+    IFS=$'\n'
+    sorted_date_dirs=($(sort <<<"${date_dirs[*]}"))
     IFS="$old_ifs"
 
     # Loop over date directories
-    tp_counter=1
+    tp_counter=0
     for date_dir in "${sorted_date_dirs[@]}"; do
         [ -d "$date_dir" ] || continue
         date_name=$(basename "$date_dir")

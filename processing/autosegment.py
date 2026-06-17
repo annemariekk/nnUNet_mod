@@ -102,7 +102,8 @@ for i in tqdm(range(subs.size)):
     print("Patient ID: "+str(patient_id))
     print("")
          
-    temporary_working_dir = inpath+str(patient_id)+'/'
+    temporary_working_dir = inpath+'/'+str(patient_id)+'/'
+    print('Temp dir:' + temporary_working_dir)
 
     try:
         shutil.rmtree(temporary_working_dir+'segmentation')
@@ -268,7 +269,7 @@ for i in tqdm(range(subs.size)):
                 shutil.copy(raw_fname,revised_label_path)
 
             INPUT_FOLDER = '/'.join(row[:len(row)-2])+'/'+patient_id+'/'+'segmentation/tmpdir/'
-            OUTPUT_FOLDER = outpath+patient_id+'/'+'_'.join(sequences_available)+'/'+mode+'/'
+            OUTPUT_FOLDER = outpath+'/'+patient_id+'/'+'_'.join(sequences_available)+'/'+mode+'/'
             if not os.path.exists(OUTPUT_FOLDER):
                 os.makedirs(OUTPUT_FOLDER)
 
